@@ -10,6 +10,7 @@ import (
 	"encoding/base32"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -57,7 +58,7 @@ func Verify(r *http.Request) error {
 		return nil
 	}
 
-	referer, err := r.URL.Parse(r.Header.Get("Referer"))
+	referer, err := url.Parse(r.Header.Get("Referer"))
 	if err != nil {
 		return err
 	}
