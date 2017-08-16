@@ -1,4 +1,4 @@
-// Copyright (c) 2015, 2016 Janoš Guljaš <janos@resenje.org>
+// Copyright (c) 2015-2017 Janoš Guljaš <janos@resenje.org>
 // All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -6,12 +6,15 @@
 package antixsrf
 
 import (
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 var validSetCookie = regexp.MustCompile(`^` + XSRFCookieName + `=[\w\d]{26};`)
@@ -20,7 +23,7 @@ func TestGenerate(t *testing.T) {
 	r := httptest.NewRequest("", "/", nil)
 	w := httptest.NewRecorder()
 
-	Generate(w, r, "/some-path")
+	Generate(w, r)
 
 	setCookies, ok := w.HeaderMap["Set-Cookie"]
 	if !ok {
@@ -28,11 +31,153 @@ func TestGenerate(t *testing.T) {
 	}
 	setCookie := setCookies[0]
 	if !validSetCookie.MatchString(setCookie) {
-		t.Errorf("set-cookie header %s does not start with %s= and contain a valid token", setCookie, XSRFCookieName)
+		t.Errorf("set-cookie header %q does not start with %s= and contain a valid token", setCookie, XSRFCookieName)
+	}
+	p := "Path=/"
+	if !strings.Contains(setCookie, p) {
+		t.Errorf("set-cookie header %q does contain path part %s", setCookie, p)
+	}
+}
+
+func TestGenerateHandler(t *testing.T) {
+	r := httptest.NewRequest("", "/", nil)
+	w := httptest.NewRecorder()
+
+	body := "test generate"
+	GenerateHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, body)
+	})).ServeHTTP(w, r)
+
+	b, err := ioutil.ReadAll(w.Body)
+	if err != nil {
+		t.Error(err)
+	}
+	if string(b) != body {
+		t.Errorf("got body %q, expected %q", string(b), body)
+	}
+
+	setCookies, ok := w.HeaderMap["Set-Cookie"]
+	if !ok {
+		t.Error("no set-cookie header in response")
+	}
+	setCookie := setCookies[0]
+	if !validSetCookie.MatchString(setCookie) {
+		t.Errorf("set-cookie header %q does not start with %s= and contain a valid token", setCookie, XSRFCookieName)
+	}
+	p := "Path=/"
+	if !strings.Contains(setCookie, p) {
+		t.Errorf("set-cookie header %q does contain path part %s", setCookie, p)
+	}
+}
+
+func TestGenerateWithCookiePath(t *testing.T) {
+	r := httptest.NewRequest("", "/", nil)
+	w := httptest.NewRecorder()
+
+	Generate(w, r, WithGenerateCookiePath("/some-path"))
+
+	setCookies, ok := w.HeaderMap["Set-Cookie"]
+	if !ok {
+		t.Error("no set-cookie header in response")
+	}
+	setCookie := setCookies[0]
+	if !validSetCookie.MatchString(setCookie) {
+		t.Errorf("set-cookie header %q does not start with %s= and contain a valid token", setCookie, XSRFCookieName)
 	}
 	p := "Path=/some-path"
 	if !strings.Contains(setCookie, p) {
-		t.Errorf("set-cookie header %s does contaon path part %s", setCookie, p)
+		t.Errorf("set-cookie header %q does contain path part %s", setCookie, p)
+	}
+}
+
+func TestGenerateWithCookieName(t *testing.T) {
+	r := httptest.NewRequest("", "/", nil)
+	w := httptest.NewRecorder()
+
+	Generate(w, r, WithGenerateCookieName("MyCoolCookie"))
+
+	setCookies, ok := w.HeaderMap["Set-Cookie"]
+	if !ok {
+		t.Error("no set-cookie header in response")
+	}
+	validSetCookie := regexp.MustCompile(`^MyCoolCookie=[\w\d]{26};`)
+	setCookie := setCookies[0]
+	if !validSetCookie.MatchString(setCookie) {
+		t.Errorf("set-cookie header %q does not start with %s= and contain a valid token", setCookie, "MyCoolCookie")
+	}
+}
+
+func TestGenerateWithCookieMaxAge(t *testing.T) {
+	r := httptest.NewRequest("", "/", nil)
+	w := httptest.NewRecorder()
+
+	Generate(w, r, WithGenerateCookieMaxAge(int(time.Hour.Seconds())))
+
+	setCookies, ok := w.HeaderMap["Set-Cookie"]
+	if !ok {
+		t.Error("no set-cookie header in response")
+	}
+
+	validSetCookie := regexp.MustCompile(`^secid=[\w\d]{26}; Path=/; Max-Age=3600$`)
+	setCookie := setCookies[0]
+	if !validSetCookie.MatchString(setCookie) {
+		t.Errorf("set-cookie header %q does not match pattern", setCookie)
+	}
+}
+
+func TestGenerateWithCookieMaxAgeSession(t *testing.T) {
+	r := httptest.NewRequest("", "/", nil)
+	w := httptest.NewRecorder()
+
+	Generate(w, r, WithGenerateCookieMaxAge(0))
+
+	setCookies, ok := w.HeaderMap["Set-Cookie"]
+	if !ok {
+		t.Error("no set-cookie header in response")
+	}
+
+	validSetCookie := regexp.MustCompile(`^secid=[\w\d]{26}; Path=/$`)
+	setCookie := setCookies[0]
+	if !validSetCookie.MatchString(setCookie) {
+		t.Errorf("set-cookie header %q does not match pattern", setCookie)
+	}
+}
+
+func TestGenerateWithForce(t *testing.T) {
+	r := httptest.NewRequest("", "/", nil)
+	w := httptest.NewRecorder()
+
+	r.AddCookie(&http.Cookie{
+		Name:  XSRFCookieName,
+		Value: "token123",
+	})
+
+	Generate(w, r, WithGenerateForce(true))
+
+	setCookies, ok := w.HeaderMap["Set-Cookie"]
+	if !ok {
+		t.Error("no set-cookie header in response")
+	}
+	setCookie := setCookies[0]
+	if !validSetCookie.MatchString(setCookie) {
+		t.Errorf("set-cookie header %q does not start with %s= and contain a valid token", setCookie, XSRFCookieName)
+	}
+}
+
+func TestGenerateWithNoForce(t *testing.T) {
+	r := httptest.NewRequest("", "/", nil)
+	w := httptest.NewRecorder()
+
+	r.AddCookie(&http.Cookie{
+		Name:  XSRFCookieName,
+		Value: "token123",
+	})
+
+	Generate(w, r, WithGenerateForce(false))
+
+	_, ok := w.HeaderMap["Set-Cookie"]
+	if ok {
+		t.Error("set-cookie header in response")
 	}
 }
 
@@ -40,7 +185,7 @@ func TestGenerateSecure(t *testing.T) {
 	r := httptest.NewRequest("", "https://localhost/", nil)
 	w := httptest.NewRecorder()
 
-	Generate(w, r, "/secure-path")
+	Generate(w, r, WithGenerateCookiePath("/secure-path"))
 
 	setCookies, ok := w.HeaderMap["Set-Cookie"]
 	if !ok {
@@ -48,15 +193,15 @@ func TestGenerateSecure(t *testing.T) {
 	}
 	setCookie := setCookies[0]
 	if !validSetCookie.MatchString(setCookie) {
-		t.Errorf("set-cookie header %s does not start with %s= and contain a valid token", setCookie, XSRFCookieName)
+		t.Errorf("set-cookie header %q does not start with %s= and contain a valid token", setCookie, XSRFCookieName)
 	}
 	p := "Path=/secure-path"
 	if !strings.Contains(setCookie, p) {
-		t.Errorf("set-cookie header %s does not contain path part %s", setCookie, p)
+		t.Errorf("set-cookie header %q does not contain path part %s", setCookie, p)
 	}
 	s := "Secure"
 	if !strings.Contains(setCookie, s) {
-		t.Errorf("set-cookie header %s does not contain secure part %s", setCookie, s)
+		t.Errorf("set-cookie header %q does not contain secure part %s", setCookie, s)
 	}
 }
 
@@ -151,6 +296,34 @@ func TestVerify(t *testing.T) {
 	}
 }
 
+func TestVerifyWithHeaderName(t *testing.T) {
+	r := httptest.NewRequest("POST", "http://localhost/", nil)
+	r.Header.Set("Referer", "http://localhost/")
+	r.AddCookie(&http.Cookie{
+		Name:  XSRFCookieName,
+		Value: "xsrf123",
+	})
+	r.Header.Set("MyCoolHeader", "xsrf123")
+
+	if err := Verify(r, WithVerifyHeaderName("MyCoolHeader")); err != nil {
+		t.Errorf("got error %#v, expected %#v", err, nil)
+	}
+}
+
+func TestVerifyWithCookieName(t *testing.T) {
+	r := httptest.NewRequest("POST", "http://localhost/", nil)
+	r.Header.Set("Referer", "http://localhost/")
+	r.AddCookie(&http.Cookie{
+		Name:  "MyCoolCookie",
+		Value: "xsrf123",
+	})
+	r.Header.Set(XSRFHeaderName, "xsrf123")
+
+	if err := Verify(r, WithVerifyCookieName("MyCoolCookie")); err != nil {
+		t.Errorf("got error %#v, expected %#v", err, nil)
+	}
+}
+
 func TestVerifyForm(t *testing.T) {
 	r := httptest.NewRequest("POST", "http://localhost/", nil)
 	r.Header.Set("Referer", "http://localhost/")
@@ -162,6 +335,21 @@ func TestVerifyForm(t *testing.T) {
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	if err := Verify(r); err != nil {
+		t.Errorf("got error %#v, expected %#v", err, nil)
+	}
+}
+
+func TestVerifyFormWithFormFieldName(t *testing.T) {
+	r := httptest.NewRequest("POST", "http://localhost/", nil)
+	r.Header.Set("Referer", "http://localhost/")
+	r.AddCookie(&http.Cookie{
+		Name:  XSRFCookieName,
+		Value: "xsrf123",
+	})
+	r.Form = url.Values(map[string][]string{"MyCoolFormField": {"xsrf123"}})
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	if err := Verify(r, WithVerifyFormFieldName("MyCoolFormField")); err != nil {
 		t.Errorf("got error %#v, expected %#v", err, nil)
 	}
 }
