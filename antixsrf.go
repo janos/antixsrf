@@ -142,6 +142,7 @@ func Verify(r *http.Request, opts ...VerifyOption) error {
 type GenerateOptions struct {
 	name   string
 	path   string
+	domain string
 	maxAge int
 	force  bool
 }
@@ -158,6 +159,11 @@ func WithGenerateCookieName(name string) GenerateOption {
 // WithGenerateCookiePath sets the cookie path. Default is "/".
 func WithGenerateCookiePath(path string) GenerateOption {
 	return func(o *GenerateOptions) { o.path = path }
+}
+
+// WithGenerateCookieDomain sets the cookie Domain.
+func WithGenerateCookieDomain(domain string) GenerateOption {
+	return func(o *GenerateOptions) { o.domain = domain }
 }
 
 // WithGenerateCookieMaxAge sets the cookie max age value in seconds.
@@ -177,6 +183,7 @@ func Generate(w http.ResponseWriter, r *http.Request, opts ...GenerateOption) {
 	o := &GenerateOptions{
 		name:   XSRFCookieName,
 		path:   "/",
+		domain: "",
 		maxAge: 0,
 	}
 	for _, opt := range opts {
@@ -187,6 +194,7 @@ func Generate(w http.ResponseWriter, r *http.Request, opts ...GenerateOption) {
 			Name:   o.name,
 			Value:  newKey(),
 			Path:   o.path,
+			Domain: o.domain,
 			Secure: r.TLS != nil,
 			MaxAge: o.maxAge,
 		})

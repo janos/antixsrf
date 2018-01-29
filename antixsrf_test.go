@@ -90,6 +90,26 @@ func TestGenerateWithCookiePath(t *testing.T) {
 	}
 }
 
+func TestGenerateWithCookieDomain(t *testing.T) {
+	r := httptest.NewRequest("", "/", nil)
+	w := httptest.NewRecorder()
+
+	Generate(w, r, WithGenerateCookieDomain("my.loc"))
+
+	setCookies, ok := w.HeaderMap["Set-Cookie"]
+	if !ok {
+		t.Error("no set-cookie header in response")
+	}
+	setCookie := setCookies[0]
+	if !validSetCookie.MatchString(setCookie) {
+		t.Errorf("set-cookie header %q does not start with %s= and contain a valid token", setCookie, XSRFCookieName)
+	}
+	d := "Domain=my.loc"
+	if !strings.Contains(setCookie, d) {
+		t.Errorf("set-cookie header %q does contain domain part %s", setCookie, d)
+	}
+}
+
 func TestGenerateWithCookieName(t *testing.T) {
 	r := httptest.NewRequest("", "/", nil)
 	w := httptest.NewRecorder()
