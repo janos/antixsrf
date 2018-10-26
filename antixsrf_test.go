@@ -25,7 +25,7 @@ func TestGenerate(t *testing.T) {
 
 	Generate(w, r)
 
-	setCookies, ok := w.HeaderMap["Set-Cookie"]
+	setCookies, ok := w.Result().Header["Set-Cookie"]
 	if !ok {
 		t.Error("no set-cookie header in response")
 	}
@@ -56,7 +56,7 @@ func TestGenerateHandler(t *testing.T) {
 		t.Errorf("got body %q, expected %q", string(b), body)
 	}
 
-	setCookies, ok := w.HeaderMap["Set-Cookie"]
+	setCookies, ok := w.Result().Header["Set-Cookie"]
 	if !ok {
 		t.Error("no set-cookie header in response")
 	}
@@ -76,7 +76,7 @@ func TestGenerateWithCookiePath(t *testing.T) {
 
 	Generate(w, r, WithGenerateCookiePath("/some-path"))
 
-	setCookies, ok := w.HeaderMap["Set-Cookie"]
+	setCookies, ok := w.Result().Header["Set-Cookie"]
 	if !ok {
 		t.Error("no set-cookie header in response")
 	}
@@ -96,7 +96,7 @@ func TestGenerateWithCookieDomain(t *testing.T) {
 
 	Generate(w, r, WithGenerateCookieDomain("my.loc"))
 
-	setCookies, ok := w.HeaderMap["Set-Cookie"]
+	setCookies, ok := w.Result().Header["Set-Cookie"]
 	if !ok {
 		t.Error("no set-cookie header in response")
 	}
@@ -116,13 +116,13 @@ func TestGenerateWithCookieName(t *testing.T) {
 
 	Generate(w, r, WithGenerateCookieName("MyCoolCookie"))
 
-	setCookies, ok := w.HeaderMap["Set-Cookie"]
+	setCookies, ok := w.Result().Header["Set-Cookie"]
 	if !ok {
 		t.Error("no set-cookie header in response")
 	}
-	validSetCookie := regexp.MustCompile(`^MyCoolCookie=[\w\d]{26};`)
+	wantCookie := regexp.MustCompile(`^MyCoolCookie=[\w\d]{26};`)
 	setCookie := setCookies[0]
-	if !validSetCookie.MatchString(setCookie) {
+	if !wantCookie.MatchString(setCookie) {
 		t.Errorf("set-cookie header %q does not start with %s= and contain a valid token", setCookie, "MyCoolCookie")
 	}
 }
@@ -133,14 +133,14 @@ func TestGenerateWithCookieMaxAge(t *testing.T) {
 
 	Generate(w, r, WithGenerateCookieMaxAge(int(time.Hour.Seconds())))
 
-	setCookies, ok := w.HeaderMap["Set-Cookie"]
+	setCookies, ok := w.Result().Header["Set-Cookie"]
 	if !ok {
 		t.Error("no set-cookie header in response")
 	}
 
-	validSetCookie := regexp.MustCompile(`^secid=[\w\d]{26}; Path=/; Max-Age=3600$`)
+	wantCookie := regexp.MustCompile(`^secid=[\w\d]{26}; Path=/; Max-Age=3600$`)
 	setCookie := setCookies[0]
-	if !validSetCookie.MatchString(setCookie) {
+	if !wantCookie.MatchString(setCookie) {
 		t.Errorf("set-cookie header %q does not match pattern", setCookie)
 	}
 }
@@ -151,14 +151,14 @@ func TestGenerateWithCookieMaxAgeSession(t *testing.T) {
 
 	Generate(w, r, WithGenerateCookieMaxAge(0))
 
-	setCookies, ok := w.HeaderMap["Set-Cookie"]
+	setCookies, ok := w.Result().Header["Set-Cookie"]
 	if !ok {
 		t.Error("no set-cookie header in response")
 	}
 
-	validSetCookie := regexp.MustCompile(`^secid=[\w\d]{26}; Path=/$`)
+	wantCookie := regexp.MustCompile(`^secid=[\w\d]{26}; Path=/$`)
 	setCookie := setCookies[0]
-	if !validSetCookie.MatchString(setCookie) {
+	if !wantCookie.MatchString(setCookie) {
 		t.Errorf("set-cookie header %q does not match pattern", setCookie)
 	}
 }
@@ -174,7 +174,7 @@ func TestGenerateWithForce(t *testing.T) {
 
 	Generate(w, r, WithGenerateForce(true))
 
-	setCookies, ok := w.HeaderMap["Set-Cookie"]
+	setCookies, ok := w.Result().Header["Set-Cookie"]
 	if !ok {
 		t.Error("no set-cookie header in response")
 	}
@@ -195,7 +195,7 @@ func TestGenerateWithNoForce(t *testing.T) {
 
 	Generate(w, r, WithGenerateForce(false))
 
-	_, ok := w.HeaderMap["Set-Cookie"]
+	_, ok := w.Result().Header["Set-Cookie"]
 	if ok {
 		t.Error("set-cookie header in response")
 	}
@@ -207,7 +207,7 @@ func TestGenerateSecure(t *testing.T) {
 
 	Generate(w, r, WithGenerateCookiePath("/secure-path"))
 
-	setCookies, ok := w.HeaderMap["Set-Cookie"]
+	setCookies, ok := w.Result().Header["Set-Cookie"]
 	if !ok {
 		t.Error("no set-cookie header in response")
 	}
