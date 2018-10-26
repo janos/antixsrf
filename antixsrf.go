@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 )
 
 var (
@@ -206,12 +205,14 @@ func hasCookie(r *http.Request, name string) (yes bool) {
 	return err != http.ErrNoCookie
 }
 
+var keyEncoding = base32.NewEncoding("0123456789abcdefghjkmnpqrstvwxyz").WithPadding(base32.NoPadding)
+
 func newKey() string {
-	return strings.TrimRight(base32.StdEncoding.EncodeToString(generateRandomKey(16)), "=")
+	return keyEncoding.EncodeToString(generateRandomKey())
 }
 
-func generateRandomKey(length int) []byte {
-	k := make([]byte, length)
+func generateRandomKey() []byte {
+	k := make([]byte, 16)
 	if _, err := io.ReadFull(rand.Reader, k); err != nil {
 		return nil
 	}
