@@ -23,7 +23,7 @@ func TestGenerate(t *testing.T) {
 	r := httptest.NewRequest("", "/", nil)
 	w := httptest.NewRecorder()
 
-	Generate(w, r)
+	token := Generate(w, r)
 
 	setCookies, ok := w.Result().Header["Set-Cookie"]
 	if !ok {
@@ -32,6 +32,9 @@ func TestGenerate(t *testing.T) {
 	setCookie := setCookies[0]
 	if !validSetCookie.MatchString(setCookie) {
 		t.Errorf("set-cookie header %q does not start with %s= and contain a valid token", setCookie, XSRFCookieName)
+	}
+	if !strings.Contains(setCookie, token) {
+		t.Errorf("set-cookie header %q does contain token %s", setCookie, token)
 	}
 	p := "Path=/"
 	if !strings.Contains(setCookie, p) {

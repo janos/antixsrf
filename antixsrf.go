@@ -178,7 +178,7 @@ func WithGenerateForce(force bool) GenerateOption {
 }
 
 // Generate generates an anti-XSRF token and sets it as a cookie value.
-func Generate(w http.ResponseWriter, r *http.Request, opts ...GenerateOption) {
+func Generate(w http.ResponseWriter, r *http.Request, opts ...GenerateOption) string {
 	o := &GenerateOptions{
 		name:   XSRFCookieName,
 		path:   "/",
@@ -188,21 +188,19 @@ func Generate(w http.ResponseWriter, r *http.Request, opts ...GenerateOption) {
 	for _, opt := range opts {
 		opt(o)
 	}
-	if !hasCookie(r, o.name) || o.force {
-		http.SetCookie(w, &http.Cookie{
+	c, err := r.Cookie(o.name)
+	if err == http.ErrNoCookie || o.force {
+		c = &http.Cookie{
 			Name:   o.name,
 			Value:  newKey(),
 			Path:   o.path,
 			Domain: o.domain,
 			Secure: r.TLS != nil,
 			MaxAge: o.maxAge,
-		})
+		}
+		http.SetCookie(w, c)
 	}
-}
-
-func hasCookie(r *http.Request, name string) (yes bool) {
-	_, err := r.Cookie(name)
-	return err != http.ErrNoCookie
+	return c.Value
 }
 
 var keyEncoding = base32.NewEncoding("0123456789abcdefghjkmnpqrstvwxyz").WithPadding(base32.NoPadding)
